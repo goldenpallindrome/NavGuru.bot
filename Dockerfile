@@ -19,3 +19,5 @@ USER root
 COPY requirements-eval.txt .
 RUN pip install --no-cache-dir -r requirements-eval.txt
 USER rag
+# Must expose port 7860 for Hugging Face Spaces
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
