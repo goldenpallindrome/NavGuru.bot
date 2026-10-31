@@ -1,0 +1,4 @@
+# Optional evaluation dependencies; keep these out of the production API image.
+ragas==0.2.15
+datasets>=2.19,<3.0
+langchain-openai>=0.2,<0.4

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+*.pyc
+.pytest_cache/
+
+# Build files
+dist/
+build/
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Logs
+*.log

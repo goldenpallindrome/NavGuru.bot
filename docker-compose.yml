@@ -1,0 +1,77 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    restart: unless-stopped
+    volumes: [qdrant_data:/qdrant/storage]
+    expose: ["6333"]
+    networks: [private]
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "noeviction"]
+    volumes: [redis_data:/data]
+    expose: ["6379"]
+    networks: [private]
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rag
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-password}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    expose: ["5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [private]
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres: {condition: service_healthy}
+      qdrant: {condition: service_started}
+      redis: {condition: service_started}
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["./data:/app/data", "model_cache:/home/rag/.cache"]
+    networks: [private]
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --workers 1
+  eval:
+    profiles: ["evaluation"]
+    build:
+      context: .
+      target: evaluation
+    env_file: .env
+    depends_on:
+      qdrant: {condition: service_started}
+    volumes:
+      - "./data:/app/data"
+      - "./eval/results:/app/eval/results"
+      - "model_cache:/home/rag/.cache"
+    networks: [private]
+    command: ["python", "-m", "eval.run_eval", "--dataset", "eval/datasets/golden.template.jsonl", "--mode", "retrieval"]
+  celery-worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on: [redis, qdrant]
+    volumes: ["./data:/app/data", "model_cache:/home/rag/.cache"]
+    networks: [private]
+    command: celery -A celery_app.celery worker -Q ingestion --loglevel=INFO --concurrency=2
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:80"]
+    depends_on: [api]
+    networks: [private]
+
+volumes:
+  qdrant_data:
+  redis_data:
+  postgres_data:
+  model_cache:
+networks:
+  private:
